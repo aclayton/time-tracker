@@ -1,0 +1,28 @@
+# Time data files (personal)
+*.json
+!config.json
+
+# Tracking state
+active.json
+last-alert-date.txt
+last-*.txt
+
+# Node modules (if any)
+node_modules/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Personal notes
+NOTES.md
+TODO.md
