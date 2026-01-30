@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "projects": [
+    "client-work",
+    "internal",
+    "admin",
+    "coding",
+    "meetings"
+  ],
+  "defaults": {
+    "timezone": "America/Toronto"
+  }
+}
