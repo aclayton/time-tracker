@@ -64,6 +64,34 @@ async function saveDay(date, data) {
   await fs.writeFile(file, JSON.stringify(data, null, 2));
 }
 
+function parseMonth(monthStr) {
+  if (!monthStr) return null;
+  
+  monthStr = monthStr.toLowerCase().trim();
+  
+  const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 
+                      'july', 'august', 'september', 'october', 'november', 'december'];
+  const monthShort = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 
+                      'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  
+  // Handle "YYYY-MM" format
+  const yymMatch = monthStr.match(/^(\d{4})-(\d{2})$/);
+  if (yymMatch) {
+    return { year: parseInt(yymMatch[1]), month: parseInt(yymMatch[2]) };
+  }
+  
+  // Handle "MonthName" or "MonthName YYYY" (e.g., "February" or "February 2026")
+  for (let i = 0; i < monthNames.length; i++) {
+    const fullMatch = monthStr.match(new RegExp(`^(${monthNames[i]}|${monthShort[i]})(?:\\s+(\\d{4}))?$`, 'i'));
+    if (fullMatch) {
+      const year = fullMatch[2] ? parseInt(fullMatch[2]) : new Date().getFullYear();
+      return { year, month: i + 1 };
+    }
+  }
+  
+  return null;
+}
+
 function parseDate(dateStr) {
   if (!dateStr) return null;
   
@@ -118,12 +146,17 @@ function parseInput(text) {
   const originalText = text;
   text = text.trim().toLowerCase();
   
-  // Extract date prefix if present: "yesterday: task" or "mon: task" or "2024-01-15: task"
+  // Extract date prefix if present: "yesterday: task" or "mon: task" or "2024-01-15: task" or "February 2026: task" etc.
+  // This regex attempts to capture common date/month formats at the start of the string.
   let datePrefix = null;
-  const datePrefixMatch = text.match(/^(yesterday|today|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}):?\s+(.+)$/i);
+  // List of recognised date/month formats: {yesterday, today, Mon, Tue..., YYYY-MM-DD, MM/DD, MonthName, MonthName YYYY, YYYY-MM}
+  const dateRegex = /^(yesterday|today|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*(\s+\d{4})?|\d{4}[/-]\d{2})[:\s]+(.+)$/i;
+  
+  const datePrefixMatch = text.match(dateRegex);
   if (datePrefixMatch) {
-    datePrefix = parseDate(datePrefixMatch[1]);
-    text = datePrefixMatch[2].trim();
+    const detectedDateOrMonth = datePrefixMatch[1];
+    datePrefix = parseDate(detectedDateOrMonth) || parseMonth(detectedDateOrMonth);
+    text = datePrefixMatch[3].trim(); // The actual command text
   }
   
   // Command: start [task]
@@ -137,12 +170,26 @@ function parseInput(text) {
     return { command: 'stop' };
   }
   
-  // Command: report [today|yesterday|date]
+  // Command: report [today|yesterday|date|month]
   if (text.match(/^report/i)) {
-    const reportMatch = text.match(/^report\s+(yesterday|today|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2})/i);
+    const reportMatch = text.match(/^report\s+(yesterday|today|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}|\d{4}-\d{2}|\w+\s+\d{4}|\w+)/i);
     let target = 'today';
     if (reportMatch) {
-      target = parseDate(reportMatch[1]) || 'today';
+      const targetStr = reportMatch[1];
+      // Try parsing as date first
+      const parsedDate = parseDate(targetStr);
+      if (parsedDate) {
+        target = parsedDate;
+      } else {
+        // If not a valid date, try parsing as month
+        const parsedMonth = parseMonth(targetStr);
+        if (parsedMonth) {
+          target = parsedMonth;
+        } else {
+          // Fallback to 'today' if unrecognized
+          target = 'today';
+        }
+      }
     } else if (text.includes('yesterday')) {
       target = 'yesterday';
     }
