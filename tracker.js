@@ -7,7 +7,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 
-const DATA_DIR = __dirname;
+const configPath = path.join(__dirname, 'config.json');\nlet config;\ntry {\n  config = JSON.parse(await fs.readFile(configPath, 'utf8'));\n} catch {\n  config = {};\n}\nconst DATA_DIR = path.resolve(__dirname, config.dataDir || '.');
 const ACTIVE_FILE = path.join(DATA_DIR, 'active.json');
 
 // Timezone: America/Toronto
