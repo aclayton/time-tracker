@@ -4,10 +4,18 @@
  * Natural language time entry parser and storage
  */
 
-const fs = require('fs').promises;\nconst fsSync = require('fs');
+const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
 
-const configPath = path.join(__dirname, 'config.json');\nlet config;\ntry {\n  config = JSON.parse(await fs.readFile(configPath, 'utf8'));\n} catch {\n  config = {};\n}\nconst DATA_DIR = path.resolve(__dirname, config.dataDir || '.');
+const configPath = path.join(__dirname, 'config.json');
+let config;
+try {
+  config = JSON.parse(await fs.readFile(configPath, 'utf8'));
+} catch {
+  config = {};
+}
+const DATA_DIR = path.resolve(__dirname, config.dataDir || '.');
 const ACTIVE_FILE = path.join(DATA_DIR, 'active.json');
 
 // Timezone: America/Toronto
