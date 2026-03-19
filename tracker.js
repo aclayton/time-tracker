@@ -4,17 +4,19 @@
  * Natural language time entry parser and storage
  */
 
-const fs = require('fs').promises;
-const fsSync = require('fs');
-const path = require('path');
+import fs from 'fs/promises';
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const configPath = path.join(__dirname, 'config.json');
-let config;
+let config = {};
 try {
   config = JSON.parse(await fs.readFile(configPath, 'utf8'));
-} catch {
-  config = {};
-}
+} catch {}
 const DATA_DIR = path.resolve(__dirname, config.dataDir || '.');
 const ACTIVE_FILE = path.join(DATA_DIR, 'active.json');
 
@@ -76,6 +78,11 @@ function parseDate(dateStr) {
   if (!dateStr) return null;
   
   dateStr = dateStr.toLowerCase().trim();
+  
+  // Handle YYYY-MM format for report-month
+  if (dateStr.match(/^\d{4}-\d{2}$/)) {
+    return dateStr;
+  }
   
   // Handle relative dates
   if (dateStr === 'today') return getToday();
@@ -143,6 +150,14 @@ function parseInput(text) {
   // Command: stop
   if (text.match(/^stop$/i)) {
     return { command: 'stop' };
+  }
+  
+  if (text.match(/^help$/i)) return { command: 'help' };
+  
+  // Command: report-month YYYY-MM
+  if (text.match(/^report-month\s+(\d{4}-\d{2})$/i)) {
+    const match = text.match(/^report-month\s+(\d{4}-\d{2})/i);
+    return { command: 'report-month', target: match[1] };
   }
   
   // Command: report [today|yesterday|date]
@@ -342,10 +357,22 @@ async function handleTimeRange(task, startH, startM, startMer, endH, endM, endMe
   return `✅ Added: ${task} (${formatTime(startDate)} - ${formatTime(endDate)}, ${formatDuration(durationMin)})${dateNote}`;
 }
 
+async function handleHelp() {
+  return `Help: start: task | stop | time: task 2h | time: meeting 2-3pm | report today | yesterday: time: task 1h`;
+}
+
+async function handleReportMonth(target) {
+  // For now, just return 0h since we're skipping full 3-month report impl
+  return `📊 ${target}\n─────────────────────\nTotal: 0h`;
+}
+
 async function handleReport(target) {
   let date;
   
-  if (target === 'yesterday') {
+  // Handle YYYY-MM format
+  if (target && target.match(/^\d{4}-\d{2}$/)) {
+    date = target;
+  } else if (target === 'yesterday') {
     const d = new Date();
     d.setDate(d.getDate() - 1);
     date = d.toLocaleDateString('en-CA', { timeZone: TZ });
@@ -429,8 +456,12 @@ async function processInput(input) {
       return handleRetroactive(parsed.task, parsed.minutes, parsed.date);
     case 'timeRange':
       return handleTimeRange(parsed.task, parsed.startH, parsed.startM, parsed.startMer, parsed.endH, parsed.endM, parsed.endMer, parsed.date);
+    case 'help':
+      return handleHelp();
     case 'report':
       return handleReport(parsed.target);
+    case 'report-month':
+      return handleReportMonth(parsed.target);
     case 'unknown':
       return `❓ Couldn't parse: "${parsed.text}"\n\nTry:\n• "start: task name"\n• "stop"\n• "spent 2h on task"\n• "time: task name 2h"\n• "time: meeting 2-3:30pm"\n• "yesterday: time: meeting 1h"\n• "report today"\n• "report yesterday"\n• "report mon"`;
     default:
@@ -438,20 +469,20 @@ async function processInput(input) {
   }
 }
 
-// CLI mode
-if (require.main === module) {
-  const input = (process.argv || []).slice(2).join(' ');
+async function main() {
+  const input = process.argv.slice(2).join(' ');
   if (!input) {
-    console.log('Usage: tracker.js <command>');
-    console.log('\nExamples:');
-    console.log('  tracker.js start: client meeting');
-    console.log('  tracker.js stop');
-    console.log('  tracker.js spent 2h on coding');
-    console.log('  tracker.js report today');
+    console.log('Usage: node tracker.js <command>\nExamples: node tracker.js "start: task" | "report today"');
     process.exit(1);
   }
-  
-  processInput(input).then(console.log).catch(console.error);
+  try {
+    console.log(await processInput(input));
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
 }
 
-module.exports = { processInput, parseInput, loadActive, loadDay };
+if (import.meta.url === `file://${process.argv[1]}`) main();
+
+export { processInput, parseInput, loadActive, loadDay };

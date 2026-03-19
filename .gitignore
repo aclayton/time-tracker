@@ -1,6 +1,7 @@
 # Time data files (personal)
 *.json
 !config.json
+active.json
 
 # Tracking state
 active.json
